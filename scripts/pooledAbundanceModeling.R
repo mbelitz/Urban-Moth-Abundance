@@ -2,6 +2,8 @@ library(dplyr)
 library(ggplot2)
 library(lubridate)
 library(brms)
+library(equatiomatic)
+library(lme4)
 
 # read in adult data
 adult_df <- read.csv("data/rawMeasurements/surveyDateSheet.csv") %>% 
@@ -47,15 +49,15 @@ adult_df <- adult_df %>%
          lunarIllumination = scale(lunarIllumination))
 
 # make my one, well thought-out model
+library(cmdstanr)
+set_cmdstan_path()
 macro_dev <- brm(formula = bf( macroMoths ~ Dev_1  + rel_temp + lunarIllumination + prcp + tmin +
                                     (1|Site),
                                   zi ~ Dev_1 + lunarIllumination + prcp + tmin + (1|Site)),
-                            prior = c(set_prior("student_t(3, 0, 2.5)", class = "Intercept"),
-                                      set_prior("normal(0, 1)", class = "b")),
                             data = adult_df,
                             family = zero_inflated_negbinomial(),
                             chains = 4, iter = 2400, warmup = 1000,
-                            control = list(adapt_delta = 0.93),
+                            control = list(adapt_delta = 0.98),
                             cores = 4, seed = 1234, 
                             threads = threading(2),
                             backend = "cmdstanr", 
@@ -70,6 +72,10 @@ pp_check(macro_dev, type = "stat", stat = "mean")
 
 
 summary(macro_dev, prob = 0.89)
+conditional_effects(x = macro_dev, effects = "prcp", prob = 0.89, dpar = "zi")
+
+macro_sum <- summary(macro_dev, prob = 0.89)$fixed %>% 
+  tibble::rownames_to_column()
 
 ce <- conditional_effects(x = macro_dev, effects = "Dev_1", prob = 0.89)
 ce_df <- ce$Dev_1
@@ -81,37 +87,34 @@ macro_plot <- ggplot() +
   labs(x = "Urban development", y = "Total abundance") +
   ggtitle("Macro moths") +
   theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 16))
+  theme(plot.title = element_text(hjust = 0.5, size = 13))
 
 macro_plot
 
-
+# rerun model without baca
 adult_df_noBaca <- adult_df %>% 
   filter(Site != "BACA")
 # make my one, well thought-out model
 macro_dev_noBaca <- brm(formula = bf( macroMoths ~ Dev_1  + rel_temp + lunarIllumination + prcp + tmin +
                                  (1|Site),
                                zi ~ Dev_1 + lunarIllumination + prcp + tmin + (1|Site)),
-                 prior = c(set_prior("student_t(3, 0, 2.5)", class = "Intercept"),
-                           set_prior("normal(0, 1)", class = "b")),
                  data = adult_df_noBaca,
                  family = zero_inflated_negbinomial(),
-                 chains = 4, iter = 2400, warmup = 1000,
-                 control = list(adapt_delta = 0.95),
+                 chains = 4, iter = 2800, warmup = 1000,
+                 control = list(adapt_delta = 0.99),
                  cores = 4, seed = 1234, 
                  threads = threading(2),
                  backend = "cmdstanr", 
 )
 
-
-
 # examine model assumptions
 pp_check(macro_dev_noBaca)
 pp_check(macro_dev_noBaca, type = "stat", stat = "mean")
 
-
 summary(macro_dev_noBaca, prob = 0.89)
 
+macro_sum_noBaca <- summary(macro_dev_noBaca, prob = 0.89)$fixed %>% 
+  tibble::rownames_to_column()
 
 ################################################################################
 #######################MICROMOTHS###############################################
@@ -120,12 +123,10 @@ summary(macro_dev_noBaca, prob = 0.89)
 micro_dev <- brm(formula = bf( microMoths ~ Dev_1  + rel_temp + lunarIllumination + prcp + tmin +
                                  (1|Site),
                                zi ~ Dev_1 + lunarIllumination + prcp + tmin + (1|Site)),
-                 prior = c(set_prior("student_t(3, 0, 2.5)", class = "Intercept"),
-                           set_prior("normal(0, 1)", class = "b")),
                  data = adult_df,
                  family = zero_inflated_negbinomial(),
-                 chains = 4, iter = 2400, warmup = 1000,
-                 control = list(adapt_delta = 0.95),
+                 chains = 4, iter = 2700, warmup = 1000,
+                 control = list(adapt_delta = 0.99),
                  cores = 4, seed = 1234, 
                  threads = threading(2),
                  backend = "cmdstanr", 
@@ -136,8 +137,9 @@ plot(micro_dev)
 pp_check(micro_dev)
 pp_check(micro_dev, type = "stat", stat = "mean")
 
-
 summary(micro_dev, prob = 0.89)
+micro_sum <- summary(micro_dev, prob = 0.89)$fixed %>% 
+  tibble::rownames_to_column()
 
 ce_micro <- conditional_effects(x = micro_dev, effects = "Dev_1", prob = 0.89)
 ce_micro_df <- ce_micro$Dev_1
@@ -149,10 +151,31 @@ micro_plot <- ggplot() +
   labs(x = "Urban development", y = "Total abundance") +
   ggtitle("Micro moths") +
   theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 16))
+  theme(plot.title = element_text(hjust = 0.5, size = 13))
 
 micro_plot
 
+# micro model no baca
+micro_dev_noBaca <- brm(formula = bf(microMoths ~ Dev_1  + rel_temp + lunarIllumination + prcp + tmin +
+                                 (1|Site),
+                               zi ~ Dev_1 + lunarIllumination + prcp + tmin + (1|Site)),
+                 data = adult_df_noBaca,
+                 family = zero_inflated_negbinomial(),
+                 chains = 4, iter = 3200, warmup = 1000,
+                 control = list(adapt_delta = 0.99999999),
+                 cores = 4, seed = 1234, 
+                 threads = threading(2),
+                 backend = "cmdstanr", 
+)
+
+# examine model assumptions
+plot(micro_dev_noBaca)
+pp_check(micro_dev_noBaca)
+pp_check(micro_dev_noBaca, type = "stat", stat = "mean")
+
+summary(micro_dev_noBaca, prob = 0.89)
+micro_sum_noBaca <- summary(micro_dev_noBaca, prob = 0.89)$fixed %>% 
+  tibble::rownames_to_column()
 
 ###############################################################################
 ################################FRASS##########################################
@@ -272,12 +295,10 @@ frass_df_perSite <- frass_df_perSite %>%
 
 frass_dev <- brm(formula = bf(MeanMassPerDay ~ Dev_1  + rel_temp + meanLunarIllumination + mean_tmin + mean_prcp +
                                 (1|Site)),
-                 prior = c(set_prior("student_t(3, 0, 2.5)", class = "Intercept"),
-                           set_prior("normal(0, 1)", class = "b")),
                  data = frass_df_perSite,
                  family = gaussian(),
                  chains = 4, iter = 2400, warmup = 1000,
-                 control = list(adapt_delta = 0.95),
+                 control = list(adapt_delta = 0.96),
                  cores = 4, seed = 1234, 
                  threads = threading(2),
                  backend = "cmdstanr", 
@@ -290,6 +311,9 @@ pp_check(frass_dev, type = "stat", stat = "mean")
 
 summary(frass_dev, prob = 0.89)
 
+frass_sum <- summary(frass_dev, prob = 0.89)$fixed %>% 
+  tibble::rownames_to_column()
+
 ce_frass <- conditional_effects(x = frass_dev, effects = "Dev_1", prob = 0.89)
 ce_frass_df <- ce_frass$Dev_1
 
@@ -300,9 +324,32 @@ frass_plot <- ggplot() +
   labs(x = "Urban development", y = "Mean frass mass per day \n log(x + 0.001)") +
   ggtitle("Caterpillars") +
   theme_bw() +
-  theme(plot.title = element_text(hjust = 0.5, size = 16))
+  theme(plot.title = element_text(hjust = 0.5, size = 13))
 
 frass_plot
+
+# frass model no baca
+frass_df_perSite_noBaca <- filter(frass_df_perSite, Site != "BACA")
+frass_dev_noBaca <- brm(formula = bf(MeanMassPerDay ~ Dev_1  + rel_temp + meanLunarIllumination + mean_tmin + mean_prcp +
+                                (1|Site)),
+                 data = frass_df_perSite_noBaca,
+                 family = gaussian(),
+                 chains = 4, iter = 2400, warmup = 1000,
+                 control = list(adapt_delta = 0.99),
+                 cores = 4, seed = 1234, 
+                 threads = threading(2),
+                 backend = "cmdstanr", 
+)
+
+# examine model assumptions
+plot(frass_dev_noBaca)
+pp_check(frass_dev_noBaca)
+pp_check(frass_dev_noBaca, type = "stat", stat = "mean")
+
+summary(frass_dev_noBaca, prob = 0.89)
+
+frass_sum_noBaca <- summary(frass_dev_noBaca, prob = 0.89)$fixed %>% 
+  tibble::rownames_to_column()
 
 # plot modeling outputs
 cp <- cowplot::plot_grid(macro_plot, micro_plot, frass_plot, 
@@ -311,11 +358,25 @@ cp <- cowplot::plot_grid(macro_plot, micro_plot, frass_plot,
 
 if(dir.exists("figOutputs")){
   ggsave(plot = cp, filename = "figOutputs/pooledAbundance.png", dpi = 500,
-         width = 6, height = 10)
+         width = 4, height = 7)
 } else{
   dir.create("figOutputs")
   ggsave(plot = cp, filename = "figOutputs/pooledAbundance.png", dpi = 500,
-         width = 6, height = 10)
+         width = 4, height = 7)
 }
 
+## Table outputs
+if(dir.exists("tabOutputs")){
+  print("Directory exists, wahoo")
+} else{
+  dir.create("tabOutputs")
+}
 
+write.csv(macro_sum, file = "tabOutputs/pooledMacroMothResults.csv", row.names = F)
+write.csv(macro_sum_noBaca, file = "tabOutputs/pooledMacroMothResults_noBaca.csv", row.names = F)
+
+write.csv(micro_sum, file = "tabOutputs/pooledMicroMothResults.csv", row.names = F)
+write.csv(micro_sum_noBaca, file = "tabOutputs/pooledMicroMothResults_noBaca.csv", row.names = F)
+
+write.csv(frass_sum, file = "tabOutputs/pooledCaterpillarsResults.csv", row.names = F)
+write.csv(frass_sum_noBaca, file = "tabOutputs/pooledCaterpillarsResults_noBaca.csv", row.names = F)
