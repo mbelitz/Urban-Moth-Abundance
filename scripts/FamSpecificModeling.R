@@ -64,7 +64,7 @@ summary(fam_dev, prob = 0.89)
 fam_dev_sum <- summary(fam_dev, prob = 0.89)$fixed %>% 
   tibble::rownames_to_column()
 
-plot(conditional_effects(fam_dev, effects = "Dev_1:Family")) +
+plot(conditional_effects(fam_dev, effects = "Dev_1:Family", prob = 0.89)) +
   theme_classic()
 
 # make plot
