@@ -1,6 +1,8 @@
 library(tidyverse)
 library(brms)
 library(ape)
+library(cmdstanr)
+set_cmdstan_path()
 # read in site by species matrix in long form
 mdf <- read.csv("data/data_products//siteXspeciesMatrix.csv")
 #read in traits
@@ -75,8 +77,6 @@ sppSpecificDev <- brm(formula = bf(abundance ~ Dev_1  + mean_temp +
                                      Dev_1:hsp +
                                      (1|validName),
                                zi ~ Dev_1 + hsp + totalLength),
-                 prior = c(set_prior("student_t(3, 0, 2.5)", class = "Intercept"),
-                           set_prior("normal(0, 1)", class = "b")),
                  data = mdf_phylo,
                  family = zero_inflated_negbinomial(),
                  chains = 4, iter = 2400, warmup = 1000,
@@ -107,8 +107,6 @@ sppSpecificDev_phylo <- brm(formula = bf(abundance ~ Dev_1  + mean_temp +
                                      Dev_1:hsp +
                                      (1|validName) + (1|gr(phyloSpp, cov = A)),
                                    zi ~ Dev_1 + hsp + totalLength),
-                      prior = c(set_prior("student_t(3, 0, 2.5)", class = "Intercept"),
-                                set_prior("normal(0, 1)", class = "b")),
                       data = mdf_phylo,
                       data2 = list(A = A),
                       family = zero_inflated_negbinomial(),
@@ -124,11 +122,35 @@ plot(sppSpecificDev_phylo)
 pp_check(sppSpecificDev_phylo)
 pp_check(sppSpecificDev_phylo, type = "stat", stat = "mean")
 
-summary(sppSpecificDev_phylo)
+summary(sppSpecificDev_phylo, prob = 0.89)
+m_sum <- summary(sppSpecificDev_phylo, prob = 0.89) 
+fixed <- m_sum$fixed %>% 
+  tibble::rownames_to_column()
+random_phy <- m_sum$random$phyloSpp %>% 
+  tibble::rownames_to_column()
+random_species <- m_sum$random$validName %>% 
+  tibble::rownames_to_column()
+
+m_sum_allSites <- bind_rows(fixed, random_phy, random_species)
 
 # plot intercations
-ce_tl <- conditional_effects(x = sppSpecificDev_phylo, effects = "Dev_1:totalLength", prob = 0.89, method = "fitted")
+ce_tl <- conditional_effects(x = sppSpecificDev_phylo, 
+                             effects = "Dev_1:totalLength", 
+                             prob = 0.89, method = "fitted", int_conditions = list(bodyLength = c(-1,0,1)))
 ce_tl_df <- ce_tl$`Dev_1:totalLength`
+head(ce_tl_df)
+
+# pred_df <- expand.grid(totalLength = c(-1,0,1), Dev_1 = seq(-1,2,by= 0.01), phyloSpp = NA, validName = NA,
+#                        mean_temp = 0, bio1_mean = 0, hsp = 1)
+# out <- predict(sppSpecificDev_phylo, pred_df, prob = c(.055, .945))
+# head(out)
+# out2 <- data.frame(out, pred_df)
+# 
+# ggplot(data = out2) +
+#   aes(x = Dev_1, color = factor(totalLength), fill = factor(totalLength)) +
+#   geom_ribbon(aes(ymin = Q5.5, ymax = Q94.5), alpha = 0.2) +
+#   geom_line(aes(y=Estimate))
+
 
 a <- ggplot() +
   geom_line(ce_tl_df, mapping = aes(x = Dev_1, y = estimate__, color = effect2__), size = 1.2) +
@@ -138,10 +160,10 @@ a <- ggplot() +
   scale_y_continuous(expand = c(0,0)) +
   labs(x = "Urban development", y = "Abundance",
        color = "Body size", fill = "Body size") +
-  scale_color_manual(values = c("#223d44","#e09f3e","#9e2a2b"),
-                     labels = c("-1 (Small)", "0.04 (Average)", "1.08 (Large)")) +
-  scale_fill_manual(values = c("#223d44","#e09f3e","#9e2a2b"),
-                    labels = c("-1 (Small)", "0.04 (Average)", "1.08 (Large)")) +
+  scale_color_manual(values = c("#9e2a2b","#e09f3e","#223d44"),
+                     labels = c("1.08 (Large)", "0.04 (Average)", "-1 (Small)")) +
+  scale_fill_manual(values = c("#9e2a2b","#e09f3e","#223d44"),
+                    labels = c("1.08 (Large)", "0.04 (Average)", "-1 (Small)")) +
   theme_classic() +
   theme(plot.title = element_text(hjust = 0.5, size = 16))+
   theme(legend.position = "bottom")
@@ -187,16 +209,6 @@ c <- ggplot(ce_tn_df, mapping = aes(x = mean_temp, y = estimate__)) +
 
 library(ggpubr)
 cpp <- ggarrange(
-  ggarrange(
-    a + theme(legend.position = c(.8,.85), legend.background = element_blank()),
-    b + theme(legend.position = c(.8,.8)),
-    ncol=1, labels = LETTERS[1:2]), 
-  c + theme(legend.position = c(.8,.9), plot.margin = margin(t=2, unit = "in")),
-  ncol = 2, labels = c(NA, "C")
-  )
-ggsave(cpp, filename = "figOutputs/sppSpecificAbundance2.png", height = 8, width = 11)
-
-cpp <- ggarrange(
   a + theme(legend.position = c(.83,.85), legend.background = element_blank()),
   b + theme(legend.position = c(.83,.85)),
   c + theme(legend.position = c(.83,.9)),
@@ -205,7 +217,43 @@ cpp <- ggarrange(
 ggsave(cpp, filename = "figOutputs/sppSpecificAbundance2.png", height = 10, width = 6)
 
 
+# make results table for no BACA
+mdf_phylo_noBaca <- mdf_phylo %>% 
+  filter(Site != "Baca")
 
-cp <- cowplot::plot_grid(a,b,c, labels = c("A", "B", "C"), nrow = 2, ncol = 2)
+sppSpecificDev_phylo_noBaca <- brm(formula = bf(abundance ~ Dev_1  + mean_temp + 
+                                           totalLength + bio1_mean + hsp + 
+                                           Dev_1:totalLength +
+                                           mean_temp:bio1_mean + 
+                                           Dev_1:hsp +
+                                           (1|validName) + (1|gr(phyloSpp, cov = A)),
+                                         zi ~ Dev_1 + hsp + totalLength),
+                            data = mdf_phylo_noBaca,
+                            data2 = list(A = A),
+                            family = zero_inflated_negbinomial(),
+                            chains = 4, iter = 2400, warmup = 1000,
+                            control = list(adapt_delta = 0.98),
+                            cores = 4, seed = 1234, 
+                            threads = threading(2),
+                            backend = "cmdstanr", 
+)
 
-ggsave(filename = "figOutputs/sppSpecificAbundance.png", height = 8, width = 11)
+# examine model assumptions
+plot(sppSpecificDev_phylo_noBaca)
+pp_check(sppSpecificDev_phylo_noBaca)
+pp_check(sppSpecificDev_phylo_noBaca, type = "stat", stat = "mean")
+
+summary(sppSpecificDev_phylo_noBaca, prob = 0.89)
+m_sum_noBaca <- summary(sppSpecificDev_phylo_noBaca, prob = 0.89) 
+fixed_noBaca <- m_sum_noBaca$fixed %>% 
+  tibble::rownames_to_column()
+random_phy_noBaca <- m_sum_noBaca$random$phyloSpp %>% 
+  tibble::rownames_to_column()
+random_species_noBaca <- m_sum_noBaca$random$validName %>% 
+  tibble::rownames_to_column()
+
+m_sum_allSites_noBaca <- bind_rows(fixed_noBaca, random_phy_noBaca, random_species_noBaca)
+
+# tabOutputs
+write.csv(m_sum_allSites, "tabOutputs/speciesSpecificResults.csv", row.names = F)
+write.csv(m_sum_allSites_noBaca, "tabOutputs/speciesSpecificResults_noBaca.csv", row.names = F)
