@@ -95,6 +95,8 @@ summary(sppSpecificDev, prob = 0.89)
 
 plot(conditional_effects(sppSpecificDev, terms = "mean_temp:bio1_mean"))
 
+
+
 mdf_phylo <- mdf_phylo %>% 
   mutate(phyloSpp = validName)
 
@@ -166,7 +168,9 @@ a <- ggplot() +
                     labels = c("1.08 (Large)", "0.04 (Average)", "-1 (Small)")) +
   theme_classic() +
   theme(plot.title = element_text(hjust = 0.5, size = 16))+
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom",
+        axis.text=element_text(size=12),
+        axis.title = element_text(size = 14))
 
 
 # hsp interaction plot
@@ -180,12 +184,16 @@ b <- ggplot(ce_hsp_df, mapping = aes(x = Dev_1, y = estimate__)) +
   geom_path(mapping = aes(y =  lower__, color = effect2__), size = 0.25, linetype = 2) +
   geom_path(mapping = aes(y = upper__, color = effect2__), size = 0.25, linetype = 2) +
   scale_y_continuous(expand = c(0,0)) +
-  scale_color_manual(values = c("#D89A9E","#2E4057","#519872"))  +
-  scale_fill_manual(values = c("#D89A9E", "#2E4057", "#519872")) +
+  scale_color_manual(values = c("#D89A9E","#2E4057","#519872"), 
+                     labels = c("Multi-family", "Family", "Genus/Species"))  +
+  scale_fill_manual(values = c("#D89A9E", "#2E4057", "#519872"), 
+                    labels = c("Multi-family", "Family", "Genus/Species")) +
   labs(y = "Abundance", x = "Urban development", 
        color = "Host plant \n specialization", fill = "Host plant \n specialization") +
   theme_classic() +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom",
+        axis.text=element_text(size=12),
+        axis.title = element_text(size = 14))
 
 # tempNiche interaction plot
 ce_tn <- conditional_effects(x = sppSpecificDev_phylo, effects = "mean_temp:bio1_mean", prob = 0.89)
@@ -205,7 +213,9 @@ c <- ggplot(ce_tn_df, mapping = aes(x = mean_temp, y = estimate__)) +
   labs(y = "Abundance", x = "Relative temperature of site", 
        color = "Temperature niche", fill = "Temperature niche") +
   theme_classic() +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom", 
+        axis.text=element_text(size=12),
+        axis.title = element_text(size = 14))
 
 library(ggpubr)
 cpp <- ggarrange(
@@ -214,7 +224,8 @@ cpp <- ggarrange(
   c + theme(legend.position = c(.83,.9)),
   ncol = 1, labels = LETTERS
 )
-ggsave(cpp, filename = "figOutputs/sppSpecificAbundance2.png", height = 10, width = 6)
+ggsave(cpp, filename = "figOutputs/sppSpecificAbundance2.png",
+       height = 10, width = 6)
 
 
 # make results table for no BACA
