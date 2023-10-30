@@ -50,6 +50,44 @@ urb <- read.csv("data/data_products/urbanization_gradient.csv")
 mdf <- mdf %>% 
   left_join(urb) 
 
+fam_dev <- brm(formula = bf(count ~ Dev_1 +
+                              (1 + Dev_1|Family)),
+               data = mdf,
+               family = negbinomial(),
+               chains = 4, iter = 2400, warmup = 1000,
+               control = list(adapt_delta = 0.93),
+               cores = 4, seed = 1234, 
+               threads = threading(2),
+               backend = "cmdstanr", 
+)
+
+# examine model assumptions
+plot(fam_dev)
+pp_check(fam_dev)
+pp_check(fam_dev, type = "stat", stat = "mean")
+
+library(tidybayes)
+
+fam_dev %>%
+  spread_draws(b_Dev_1, r_Family[Family,Intercept]) %>%
+  # add the grand mean to the group-specific deviations
+  mutate(mu = b_Dev_1 + r_Family) %>%
+  ungroup() %>%
+  mutate(Family = str_replace_all(Family, "[.]", " ")) %>% 
+  
+  # plot
+  ggplot(aes(x = mu, y = reorder(Family, mu))) +
+  geom_vline(xintercept = fixef(fam_dev)[2, 1], color = "#839496", size = 1) +
+  geom_vline(xintercept = fixef(fam_dev)[2, 3:4], color = "#839496", linetype = 2) +
+  stat_halfeye(.width = .5, size = 2/3, fill = "#859900") +
+  labs(x = expression("Sensitivity to urban development"),
+       y = "") +
+  theme(panel.grid   = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.text.y  = element_text(hjust = 0),
+        text = element_text(family = "Ubuntu")) 
+
+
 fam_dev <- brm(formula = bf(count ~ Dev_1 * Family),
                  data = mdf,
                  family = negbinomial(),
@@ -59,6 +97,11 @@ fam_dev <- brm(formula = bf(count ~ Dev_1 * Family),
                  threads = threading(2),
                  backend = "cmdstanr", 
 )
+
+# examine model assumptions
+plot(fam_dev)
+pp_check(fam_dev)
+pp_check(fam_dev, type = "stat", stat = "mean")
 
 summary(fam_dev, prob = 0.89)
 fam_dev_sum <- summary(fam_dev, prob = 0.89)$fixed %>% 
