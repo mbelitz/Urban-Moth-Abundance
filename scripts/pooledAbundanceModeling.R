@@ -23,12 +23,12 @@ adult_df <- read.csv("data/rawMeasurements/surveyDateSheet.csv") %>%
 # combine dataset with urbanization values
 urb <- read.csv("data/data_products/urbanization_gradient.csv")
 temp <- read.csv("data/data_products/temp_gradient.csv")
-weather <- read.csv("data/weatherData/daymetDat.csv")
+weather <- read.csv("data/weatherData/daymetData.csv")
 weather <- weather %>% 
-  rename(doy = data.yday,
-         year = data.year,
-         prcp = data.prcp..mm.day.,
-         tmin = data.tmin..deg.c.) %>% 
+  rename(doy = yday,
+         year = year,
+         prcp = prcp..mm.day.,
+         tmin = tmin..deg.c.) %>% 
   select(doy, year, prcp, tmin)
 lunarIllumination <- read.csv("data/data_products/lunarIllumination_lunarRPackage.csv")
 lunarIllumination$Date <- as.Date(lunarIllumination$Date)
@@ -287,7 +287,7 @@ frass_dev <- brm(formula = bf(MeanMassPerDay ~ Dev_1  + rel_temp +
 
 # examine model assumptions
 plot(frass_dev)
-pp_check(frass_dev)
+pp_check(frass_dev, ndraws = 50)
 pp_check(frass_dev, type = "stat", stat = "mean")
 
 summary(frass_dev, prob = 0.89)
