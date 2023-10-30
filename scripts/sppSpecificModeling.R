@@ -154,10 +154,10 @@ head(ce_tl_df)
 
 
 a <- ggplot() +
-  geom_line(ce_tl_df, mapping = aes(x = Dev_1, y = estimate__, color = effect2__), size = 1.2) +
+  geom_line(ce_tl_df, mapping = aes(x = Dev_1, y = estimate__, color = effect2__), linewidth = 1.2) +
   geom_ribbon(ce_tl_df, mapping = aes(x = Dev_1, ymax = upper__, ymin = lower__, fill = effect2__), alpha = 0.3) +
-  geom_path(ce_tl_df, mapping = aes(x = Dev_1, y =  lower__, color = effect2__), size = 0.25, linetype = 2) +
-  geom_path(ce_tl_df, mapping = aes(x = Dev_1, y = upper__, color = effect2__), size = 0.25, linetype = 2) +
+  geom_path(ce_tl_df, mapping = aes(x = Dev_1, y =  lower__, color = effect2__), linewidth = 0.25, linetype = 2) +
+  geom_path(ce_tl_df, mapping = aes(x = Dev_1, y = upper__, color = effect2__), linewidth = 0.25, linetype = 2) +
   scale_y_continuous(expand = c(0,0)) +
   labs(x = "Urban development", y = "Abundance",
        color = "Body size", fill = "Body size") +
