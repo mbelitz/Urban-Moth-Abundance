@@ -4,6 +4,8 @@ library(lubridate)
 library(brms)
 library(equatiomatic)
 library(lme4)
+library(cmdstanr)
+set_cmdstan_path()
 
 # read in adult data
 adult_df <- read.csv("data/rawMeasurements/surveyDateSheet.csv") %>% 
@@ -14,13 +16,13 @@ adult_df <- read.csv("data/rawMeasurements/surveyDateSheet.csv") %>%
                         false = doy + 365)) %>% 
   rename(Site = location) %>% 
   mutate(SiteDate = paste(Site, eventDate, sep = "_")) %>% 
-  mutate(Date = as_date(mdy(eventDate)))
+  mutate(Date = as_date(mdy(eventDate))) %>% 
+  mutate(Site = stringr::str_to_title(Site))
 
-## create models for each cumulative meaasure
+## create models for each cumulative measure
 # combine dataset with urbanization values
-urb <- read.csv("data/data_products/urbanization_gradient_SITE.csv")
-light <- read.csv("data/data_products/lightData_SITE.csv")
-temp <- read.csv("data/data_products/temp_gradient_SITE.csv")
+urb <- read.csv("data/data_products/urbanization_gradient.csv")
+temp <- read.csv("data/data_products/temp_gradient.csv")
 weather <- read.csv("data/weatherData/daymetDat.csv")
 weather <- weather %>% 
   rename(doy = data.yday,
@@ -33,24 +35,19 @@ lunarIllumination$Date <- as.Date(lunarIllumination$Date)
 # join urb values with moth_df
 adult_df <- adult_df%>% 
   left_join(urb) %>% 
-  left_join(light) %>% 
   left_join(temp) %>% 
   left_join(weather) %>% 
   left_join(lunarIllumination, by = c("Date" = "Date")) %>% 
-  mutate(rel_temp = (mean_temp - 1.02)*-1) %>% 
-  mutate(meanLight = log(meanLight + 0.01))
+  mutate(rel_temp = (mean_temp - 1.02)*-1) 
 
 adult_df <- adult_df %>% 
   mutate(rel_temp = scale(rel_temp),
-         meanLight = scale(meanLight),
          tmin = scale(tmin),
          prcp = scale(prcp),
          Dev_1 = scale(Dev_1),
          lunarIllumination = scale(lunarIllumination))
 
 # make my one, well thought-out model
-library(cmdstanr)
-set_cmdstan_path()
 macro_dev <- brm(formula = bf( macroMoths ~ Dev_1  + rel_temp + lunarIllumination + prcp + tmin +
                                     (1|Site),
                                   zi ~ Dev_1 + lunarIllumination + prcp + tmin + (1|Site)),
@@ -95,7 +92,8 @@ macro_plot
 adult_df_noBaca <- adult_df %>% 
   filter(Site != "BACA")
 # make my one, well thought-out model
-macro_dev_noBaca <- brm(formula = bf( macroMoths ~ Dev_1  + rel_temp + lunarIllumination + prcp + tmin +
+macro_dev_noBaca <- brm(formula = bf( macroMoths ~ Dev_1  + rel_temp + 
+                                        lunarIllumination + prcp + tmin +
                                  (1|Site),
                                zi ~ Dev_1 + lunarIllumination + prcp + tmin + (1|Site)),
                  data = adult_df_noBaca,
@@ -120,7 +118,8 @@ macro_sum_noBaca <- summary(macro_dev_noBaca, prob = 0.89)$fixed %>%
 #######################MICROMOTHS###############################################
 ################################################################################
 # make my one, well thought-out model
-micro_dev <- brm(formula = bf( microMoths ~ Dev_1  + rel_temp + lunarIllumination + prcp + tmin +
+micro_dev <- brm(formula = bf( microMoths ~ Dev_1  + rel_temp + 
+                                 lunarIllumination + prcp + tmin +
                                  (1|Site),
                                zi ~ Dev_1 + lunarIllumination + prcp + tmin + (1|Site)),
                  data = adult_df,
@@ -156,7 +155,8 @@ micro_plot <- ggplot() +
 micro_plot
 
 # micro model no baca
-micro_dev_noBaca <- brm(formula = bf(microMoths ~ Dev_1  + rel_temp + lunarIllumination + prcp + tmin +
+micro_dev_noBaca <- brm(formula = bf(microMoths ~ Dev_1  + rel_temp + 
+                                       lunarIllumination + prcp + tmin +
                                  (1|Site),
                                zi ~ Dev_1 + lunarIllumination + prcp + tmin + (1|Site)),
                  data = adult_df_noBaca,
@@ -182,7 +182,7 @@ micro_sum_noBaca <- summary(micro_dev_noBaca, prob = 0.89)$fixed %>%
 ###############################################################################
 ## total abundance -- frass
 # read in frass data
-frass_df <- read.csv("data/data_products/frass_biomass_reweigh_doyDiff.csv")
+frass_df <- read.csv("data/rawMeasurements/frass_biomass.csv")
 frass_df <- frass_df %>% 
   mutate(MassPerDay = log((Mass/diff) + 0.0001))
 ## total abundance -- frass
@@ -251,41 +251,21 @@ lp_ldf <- lapply(surveyDates, lunarDateFun)
 
 lunarDates_df <- bind_rows(lp_ldf)
 
-frass_df <- frass_df %>% 
-  left_join(urb) %>% 
-  left_join(light) %>% 
-  left_join(temp) %>% 
-  left_join(meanWeather_df) %>% 
-  left_join(lunarDates_df) %>% 
-  mutate(rel_temp = (mean_temp - 1.02)*-1) %>% 
-  mutate(meanLight = log(meanLight + 0.01))
-
-frass_df <- frass_df %>% 
-  mutate(rel_temp = scale(rel_temp),
-         meanLight = scale(meanLight),
-         mean_tmin = scale(mean_tmin),
-         mean_prcp = scale(mean_prcp),
-         Dev_1 = scale(Dev_1),
-         meanLunarIllumination = scale(meanLunarIllumination)
-  )
-
-# per site?
+# per site
 frass_df_perSite <- frass_df %>% 
+  mutate(Site = stringr::str_to_title(Site)) %>% 
   group_by(Site, Date) %>% 
   summarise(MeanMassPerDay = mean(MassPerDay, na.rm = T))
 
 frass_df_perSite <- ungroup(frass_df_perSite) %>% 
   left_join(urb) %>% 
-  left_join(light) %>% 
   left_join(temp) %>% 
   left_join(meanWeather_df) %>% 
   left_join(lunarDates_df) %>% 
-  mutate(rel_temp = (mean_temp - 1.02)*-1) %>% 
-  mutate(meanLight = log(meanLight + 0.01))
+  mutate(rel_temp = (mean_temp - 1.02)*-1)
 
 frass_df_perSite <- frass_df_perSite %>% 
   mutate(rel_temp = scale(rel_temp),
-         meanLight = scale(meanLight),
          mean_tmin = scale(mean_tmin),
          mean_prcp = scale(mean_prcp),
          Dev_1 = scale(Dev_1),
@@ -293,12 +273,13 @@ frass_df_perSite <- frass_df_perSite %>%
   )
 
 
-frass_dev <- brm(formula = bf(MeanMassPerDay ~ Dev_1  + rel_temp + meanLunarIllumination + mean_tmin + mean_prcp +
+frass_dev <- brm(formula = bf(MeanMassPerDay ~ Dev_1  + rel_temp +
+                                meanLunarIllumination + mean_tmin + mean_prcp +
                                 (1|Site)),
                  data = frass_df_perSite,
                  family = gaussian(),
                  chains = 4, iter = 2400, warmup = 1000,
-                 control = list(adapt_delta = 0.96),
+                 control = list(adapt_delta = 0.999),
                  cores = 4, seed = 1234, 
                  threads = threading(2),
                  backend = "cmdstanr", 
@@ -330,12 +311,13 @@ frass_plot
 
 # frass model no baca
 frass_df_perSite_noBaca <- filter(frass_df_perSite, Site != "BACA")
-frass_dev_noBaca <- brm(formula = bf(MeanMassPerDay ~ Dev_1  + rel_temp + meanLunarIllumination + mean_tmin + mean_prcp +
+frass_dev_noBaca <- brm(formula = bf(MeanMassPerDay ~ Dev_1  + rel_temp +
+                                       meanLunarIllumination + mean_tmin + mean_prcp +
                                 (1|Site)),
                  data = frass_df_perSite_noBaca,
                  family = gaussian(),
                  chains = 4, iter = 2400, warmup = 1000,
-                 control = list(adapt_delta = 0.99),
+                 control = list(adapt_delta = 0.999),
                  cores = 4, seed = 1234, 
                  threads = threading(2),
                  backend = "cmdstanr", 

@@ -4,7 +4,7 @@ library(ape)
 library(cmdstanr)
 set_cmdstan_path()
 # read in site by species matrix in long form
-mdf <- read.csv("data/data_products//siteXspeciesMatrix.csv")
+mdf <- read.csv("data/data_products/siteXspeciesMatrix.csv")
 #read in traits
 traits <- read.csv("data/data_products//traits.csv") %>% 
   select(-species, -max_lat, -min_lat, -med_lat, -geoPF, -notes.1, -X)
@@ -37,7 +37,6 @@ mdf_scaled <- mdf %>%
          Dev_1 = scale(Dev_1),
          bio1_sd = scale(bio1_sd),
          bio1_mean = scale(bio1_mean),
-         meanLight = scale(log(meanLight + 0.01)),
          mean_temp = scale((mean_temp - 1.02) * -1),
          totalLength = scale(totalLength))
 
@@ -69,7 +68,7 @@ mdf_phylo <- mdf_phylo %>%
 tt <- ape::drop.tip(tt, tip = sppNotInAnlysis$validName)
 A <- ape::vcv.phylo(tt)
 
-
+# run model
 sppSpecificDev <- brm(formula = bf(abundance ~ Dev_1  + mean_temp + 
                                      totalLength + bio1_mean + hsp + 
                                      Dev_1:totalLength +
