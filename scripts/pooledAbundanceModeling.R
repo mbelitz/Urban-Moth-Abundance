@@ -90,7 +90,7 @@ macro_plot
 
 # rerun model without baca
 adult_df_noBaca <- adult_df %>% 
-  filter(Site != "BACA")
+  filter(Site != "Baca")
 # make my one, well thought-out model
 macro_dev_noBaca <- brm(formula = bf( macroMoths ~ Dev_1  + rel_temp + 
                                         lunarIllumination + prcp + tmin +
@@ -99,7 +99,7 @@ macro_dev_noBaca <- brm(formula = bf( macroMoths ~ Dev_1  + rel_temp +
                  data = adult_df_noBaca,
                  family = zero_inflated_negbinomial(),
                  chains = 4, iter = 2800, warmup = 1000,
-                 control = list(adapt_delta = 0.99),
+                 control = list(adapt_delta = 0.999),
                  cores = 4, seed = 1234, 
                  threads = threading(2),
                  backend = "cmdstanr", 
@@ -310,14 +310,14 @@ frass_plot <- ggplot() +
 frass_plot
 
 # frass model no baca
-frass_df_perSite_noBaca <- filter(frass_df_perSite, Site != "BACA")
+frass_df_perSite_noBaca <- filter(frass_df_perSite, Site != "Baca")
 frass_dev_noBaca <- brm(formula = bf(MeanMassPerDay ~ Dev_1  + rel_temp +
                                        meanLunarIllumination + mean_tmin + mean_prcp +
                                 (1|Site)),
                  data = frass_df_perSite_noBaca,
                  family = gaussian(),
-                 chains = 4, iter = 2400, warmup = 1000,
-                 control = list(adapt_delta = 0.999),
+                 chains = 4, iter = 2800, warmup = 1000,
+                 control = list(adapt_delta = 0.9999),
                  cores = 4, seed = 1234, 
                  threads = threading(2),
                  backend = "cmdstanr", 
