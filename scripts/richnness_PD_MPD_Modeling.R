@@ -18,6 +18,7 @@ rich <- rich %>%
   left_join(urb)
 
 # make my one, well thought-out model
+set.seed(seed = 5)
 rich_dev <- brm(formula = bf(richness ~ Dev_1),
                  data = rich,
                  family = gaussian(),
@@ -32,7 +33,7 @@ rich_dev <- brm(formula = bf(richness ~ Dev_1),
 
 # examine model assumptions
 plot(rich_dev)
-pp_check(rich_dev)
+pp_check(rich_dev, ndraws = 100)
 pp_check(rich_dev, type = "stat", stat = "mean")
 
 summary(rich_dev, prob = 0.89)
@@ -57,6 +58,7 @@ rich_plot
 rich_noBaca <- rich %>% 
   filter(Site != "Baca")
 
+set.seed(6)
 rich_dev_noBaca <- brm(formula = bf(richness ~ Dev_1),
                 data = rich_noBaca,
                 family = gaussian(),
@@ -149,6 +151,7 @@ moth.pdp <- moth.pdp %>%
   na.omit()
 
 # make my one, well thought-out model
+set.seed(7)
 pdp_dev <- brm(formula = bf(PD ~ Dev_1),
                 data = moth.pdp,
                 family = gaussian(),
@@ -186,6 +189,7 @@ pdp_plot
 pdp_noBaca <- moth.pdp %>% 
   filter(Site != "Baca")
 
+set.seed(8)
 pdp_dev_noBaca <- brm(formula = bf(PD ~ Dev_1),
                        data = pdp_noBaca,
                        family = gaussian(),
@@ -244,6 +248,7 @@ mpd <- mpd %>%
 mpd
 
 # make model
+set.seed(9)
 mpd_dev <- brm(formula = bf(abundance.weighted ~ Dev_1),
                data = mpd,
                family = gaussian(),
@@ -281,6 +286,7 @@ mpd_noBaca <- mpd %>%
   filter(Site != "Baca")
 
 # make model
+set.seed(10)
 mpd_dev_noBaca <- brm(formula = bf(abundance.weighted ~ Dev_1),
                data = mpd_noBaca,
                family = gaussian(),
