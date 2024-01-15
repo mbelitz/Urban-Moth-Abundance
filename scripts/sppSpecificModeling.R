@@ -3,8 +3,43 @@ library(brms)
 library(ape)
 library(cmdstanr)
 set_cmdstan_path()
-# read in site by species matrix in long form
-mdf <- read.csv("data/data_products/siteXspeciesMatrix.csv")
+
+# read in species-specific data
+moth_df <- read.csv("data/data_products/adultDataSet_validNames.csv") %>% 
+  distinct(id, .keep_all = T) %>% 
+  mutate(year = year(mdy(eventDate))) %>% 
+  mutate(doy = if_else(
+    condition = year == 2019,
+    true = yday(mdy(eventDate)),
+    false = 365 + yday(mdy(eventDate))
+  ))
+
+moth_df <- moth_df %>% 
+  filter(Family != "cantID",
+         Family != "retake_photo",
+         Family != "rephotograph",
+         Family != "retake_photos")
+
+head(moth_df)
+
+abund_df <- moth_df %>% 
+     group_by(Site, validName) %>% 
+     summarise(abundance = n())
+
+abund_df <- ungroup(abund_df) %>% 
+  mutate(genus = word(validName, 1 ,1),
+         species = word(validName,2,2))
+
+abund_df <- abund_df %>% 
+  filter(species != "NA",
+         species != "",
+         genus != "Datana")
+
+abund_df <- abund_df %>% 
+  complete(validName,Site, fill = list(abundance = 0))
+
+# rename as model data frame
+mdf <- abund_df
 #read in traits
 traits <- read.csv("data/data_products//traits.csv") %>% 
   select(-species, -max_lat, -min_lat, -med_lat, -geoPF, -notes.1, -X)
@@ -32,19 +67,69 @@ mdf <- mdf %>%
                        true = 5, false = hsp)) %>% 
   mutate(hsp = na_if(hsp, 5))
 
-mdf_scaled <- mdf %>% 
+mdf <- filter(mdf, !is.na(hsp))
+
+urb <- read.csv("data/data_products/urbanization_gradient.csv")
+
+mdf <- mdf %>% left_join(urb)  
+
+meanDev <- mean(mdf$Dev_1)
+sdDev <- sd(mdf$Dev_1)
+
+mdf_scaled_hsp <- mdf %>% 
   mutate(Dev_1 = scale(Dev_1),
          Dev_1 = scale(Dev_1),
          bio1_sd = scale(bio1_sd),
          bio1_mean = scale(bio1_mean),
-         mean_temp = scale((mean_temp - 1.02) * -1),
          totalLength = scale(totalLength))
 
 ## cool let's also look at the subset of data for which we have hsp data
-mdf_scaled_hsp <- mdf_scaled %>% 
-  filter(!is.na(hsp))
-
 mdf_scaled_hsp$hsp <- as.factor(mdf_scaled_hsp$hsp)
+
+# run non phylogenetic model
+# run model
+slopePrior <- prior(normal(0,10), class = b)
+
+set.seed(124)
+sppSpecificDev <- brm(formula = bf(abundance ~ Dev_1 + 
+                                     totalLength + bio1_mean + hsp + 
+                                     Dev_1:totalLength +
+                                     Dev_1:bio1_mean + 
+                                     Dev_1:hsp +
+                                     (1|validName),
+                                   zi ~ Dev_1 + hsp + totalLength),
+                      data = mdf_scaled_hsp,
+                      family = zero_inflated_negbinomial(),
+                      chains = 4, iter = 2400, warmup = 1000,
+                      control = list(adapt_delta = 0.99),
+                      cores = 4, seed = 1234, 
+                      threads = threading(2),
+                      backend = "cmdstanr", 
+                      prior = slopePrior
+)
+
+
+# examine model assumptions
+plot(sppSpecificDev)
+pp_check(sppSpecificDev, ndraws = 100)
+pp_check(sppSpecificDev, type = "stat", stat = "mean")
+
+summary(sppSpecificDev, prob = 0.89)
+
+plot(conditional_effects(sppSpecificDev, terms = "mean_temp:bio1_mean"))
+
+m_sum_noPhy <- summary(sppSpecificDev, prob = 0.89) 
+fixed_noPhy <- m_sum_noPhy$fixed %>% 
+  tibble::rownames_to_column()
+random_species_noPhy <- m_sum_noPhy$random$validName %>% 
+  tibble::rownames_to_column()
+
+m_sum_allSites_noPhy <- bind_rows(fixed_noPhy, random_species_noPhy)
+
+# tabOutputs of non phylogenetic model
+write.csv(m_sum_allSites_noPhy, "tabOutputs/speciesSpecificResults_noPhylogeney.csv", row.names = F)
+
+##### Phylogenetic model
 
 # function to capitalize spp names
 firstup <- function(x) {
@@ -55,7 +140,6 @@ firstup <- function(x) {
 tt <- read.tree("data/phylogeny/insect_tree_wBranches_allSpecies.tre")
 tt$tip.label <- stringr::str_replace(tt$tip.label, pattern = "_", " ")
 tt$tip.label <- firstup(tt$tip.label)
-
 
 mdf_phylo <- left_join(mdf_scaled_hsp, data.frame(validName = tt$tip.label, Phylo = "Yes"))
 
@@ -68,59 +152,32 @@ mdf_phylo <- mdf_phylo %>%
 tt <- ape::drop.tip(tt, tip = sppNotInAnlysis$validName)
 A <- ape::vcv.phylo(tt)
 
-# run model
-sppSpecificDev <- brm(formula = bf(abundance ~ Dev_1  + mean_temp + 
-                                     totalLength + bio1_mean + hsp + 
-                                     Dev_1:totalLength +
-                                     mean_temp:bio1_mean + 
-                                     Dev_1:hsp +
-                                     (1|validName),
-                               zi ~ Dev_1 + hsp + totalLength),
-                 data = mdf_phylo,
-                 family = zero_inflated_negbinomial(),
-                 chains = 4, iter = 2400, warmup = 1000,
-                 control = list(adapt_delta = 0.95),
-                 cores = 4, seed = 1234, 
-                 threads = threading(2),
-                 backend = "cmdstanr", 
-)
-
-# examine model assumptions
-plot(sppSpecificDev)
-pp_check(sppSpecificDev)
-pp_check(sppSpecificDev, type = "stat", stat = "mean")
-
-summary(sppSpecificDev, prob = 0.89)
-
-plot(conditional_effects(sppSpecificDev, terms = "mean_temp:bio1_mean"))
-
-
-
+# Add phylogenetic term
 mdf_phylo <- mdf_phylo %>% 
   mutate(phyloSpp = validName)
 
-
-# Add phylogenetic term
-sppSpecificDev_phylo <- brm(formula = bf(abundance ~ Dev_1  + mean_temp + 
-                                     totalLength + bio1_mean + hsp + 
-                                     Dev_1:totalLength +
-                                     mean_temp:bio1_mean + 
-                                     Dev_1:hsp +
-                                     (1|validName) + (1|gr(phyloSpp, cov = A)),
-                                   zi ~ Dev_1 + hsp + totalLength),
-                      data = mdf_phylo,
-                      data2 = list(A = A),
-                      family = zero_inflated_negbinomial(),
-                      chains = 4, iter = 2400, warmup = 1000,
-                      control = list(adapt_delta = 0.95),
-                      cores = 4, seed = 1234, 
-                      threads = threading(2),
-                      backend = "cmdstanr", 
+set.seed(1234)
+sppSpecificDev_phylo <- brm(formula = bf(abundance ~ Dev_1   + 
+                                           totalLength + bio1_mean + hsp + 
+                                           Dev_1:totalLength +
+                                           Dev_1:bio1_mean + 
+                                           Dev_1:hsp +
+                                           (1|validName) + (1|gr(phyloSpp, cov = A)),
+                                         zi ~ Dev_1 + hsp + totalLength),
+                            data = mdf_phylo,
+                            data2 = list(A = A),
+                            family = zero_inflated_negbinomial(),
+                            chains = 4, iter = 2400, warmup = 1000,
+                            control = list(adapt_delta = 0.99),
+                            cores = 4, seed = 1234, 
+                            threads = threading(2),
+                            backend = "cmdstanr", 
+                            prior = slopePrior
 )
 
 # examine model assumptions
 plot(sppSpecificDev_phylo)
-pp_check(sppSpecificDev_phylo)
+pp_check(sppSpecificDev_phylo, ndraws = 100)
 pp_check(sppSpecificDev_phylo, type = "stat", stat = "mean")
 
 summary(sppSpecificDev_phylo, prob = 0.89)
@@ -152,19 +209,18 @@ head(ce_tl_df)
 #   geom_ribbon(aes(ymin = Q5.5, ymax = Q94.5), alpha = 0.2) +
 #   geom_line(aes(y=Estimate))
 
-
 a <- ggplot() +
-  geom_line(ce_tl_df, mapping = aes(x = Dev_1, y = estimate__, color = effect2__), linewidth = 1.2) +
-  geom_ribbon(ce_tl_df, mapping = aes(x = Dev_1, ymax = upper__, ymin = lower__, fill = effect2__), alpha = 0.3) +
-  geom_path(ce_tl_df, mapping = aes(x = Dev_1, y =  lower__, color = effect2__), linewidth = 0.25, linetype = 2) +
-  geom_path(ce_tl_df, mapping = aes(x = Dev_1, y = upper__, color = effect2__), linewidth = 0.25, linetype = 2) +
+  geom_line(ce_tl_df, mapping = aes(x = meanDev + (sdDev*Dev_1), y = estimate__, color = effect2__), linewidth = 1.2) +
+  geom_ribbon(ce_tl_df, mapping = aes(x = meanDev + (sdDev*Dev_1), ymax = upper__, ymin = lower__, fill = effect2__), alpha = 0.3) +
+  geom_path(ce_tl_df, mapping = aes(x = meanDev + (sdDev*Dev_1), y =  lower__, color = effect2__), linewidth = 0.25, linetype = 2) +
+  geom_path(ce_tl_df, mapping = aes(x = meanDev + (sdDev*Dev_1), y = upper__, color = effect2__), linewidth = 0.25, linetype = 2) +
   scale_y_continuous(expand = c(0,0)) +
   labs(x = "Urban development", y = "Abundance",
        color = "Body size", fill = "Body size") +
   scale_color_manual(values = c("#9e2a2b","#e09f3e","#223d44"),
-                     labels = c("1.08 (Large)", "0.04 (Average)", "-1 (Small)")) +
+                     labels = c("1.04 (Large)", "0.01 (Average)", "-1.03 (Small)")) +
   scale_fill_manual(values = c("#9e2a2b","#e09f3e","#223d44"),
-                    labels = c("1.08 (Large)", "0.04 (Average)", "-1 (Small)")) +
+                    labels = c("1.04 (Large)", "0.01 (Average)", "-1.03 (Small)")) +
   theme_classic() +
   theme(plot.title = element_text(hjust = 0.5, size = 16))+
   theme(legend.position = "bottom",
@@ -176,12 +232,12 @@ a <- ggplot() +
 ce_hsp <- conditional_effects(x = sppSpecificDev_phylo, effects = "Dev_1:hsp", prob = 0.89)
 ce_hsp_df <- ce_hsp$`Dev_1:hsp`
 
-b <- ggplot(ce_hsp_df, mapping = aes(x = Dev_1, y = estimate__)) +
+b <- ggplot(ce_hsp_df, mapping = aes(x = meanDev + (sdDev*Dev_1), y = estimate__)) +
   geom_ribbon(mapping = aes(ymin = lower__, ymax = upper__, fill = effect2__), 
               alpha = 0.15) +
-  geom_line(mapping = aes(color = effect2__), size = 1.05) +
-  geom_path(mapping = aes(y =  lower__, color = effect2__), size = 0.25, linetype = 2) +
-  geom_path(mapping = aes(y = upper__, color = effect2__), size = 0.25, linetype = 2) +
+  geom_line(mapping = aes(color = effect2__), linewidth = 1.05) +
+  geom_path(mapping = aes(y =  lower__, color = effect2__), linewidth = 0.25, linetype = 2) +
+  geom_path(mapping = aes(y = upper__, color = effect2__), linewidth = 0.25, linetype = 2) +
   scale_y_continuous(expand = c(0,0)) +
   scale_color_manual(values = c("#D89A9E","#2E4057","#519872"), 
                      labels = c("Multi-family", "Family", "Genus/Species"))  +
@@ -195,10 +251,10 @@ b <- ggplot(ce_hsp_df, mapping = aes(x = Dev_1, y = estimate__)) +
         axis.title = element_text(size = 14))
 
 # tempNiche interaction plot
-ce_tn <- conditional_effects(x = sppSpecificDev_phylo, effects = "mean_temp:bio1_mean", prob = 0.89)
-ce_tn_df <- ce_tn$`mean_temp:bio1_mean`
+ce_tn <- conditional_effects(x = sppSpecificDev_phylo, effects = "Dev_1:bio1_mean", prob = 0.89)
+ce_tn_df <- ce_tn$`Dev_1:bio1_mean`
 
-c <- ggplot(ce_tn_df, mapping = aes(x = mean_temp, y = estimate__)) +
+c <- ggplot(ce_tn_df, mapping = aes(x = meanDev + (sdDev*Dev_1), y = estimate__)) +
   geom_ribbon(mapping = aes(ymin = lower__, ymax = upper__, fill = effect2__), 
               alpha = 0.15) +
   geom_line(mapping = aes(color = effect2__), size = 1.05) +
@@ -206,10 +262,10 @@ c <- ggplot(ce_tn_df, mapping = aes(x = mean_temp, y = estimate__)) +
   geom_path(mapping = aes(y = upper__, color = effect2__), size = 0.25, linetype = 2) +
   scale_y_continuous(expand = c(0,0)) +
   scale_fill_manual(values = c( "#E76F51", "#D5A220","#2A9D8F"),
-                    labels = c("0.99 (Warm-adapted)", "-0.02 (Average)", "-1.04 (Cold-adapted)")) +
+                    labels = c("0.99 (Warm-adapted)", "-0.01 (Average)", "-1 (Cold-adapted)")) +
   scale_color_manual(values = c( "#E76F51", "#D5A220","#2A9D8F"),
-                     labels = c("0.99 (Warm-adapted)", "-0.02 (Average)", "-1.04 (Cold-adapted)"))  +
-  labs(y = "Abundance", x = "Relative temperature of site", 
+                     labels = c("0.99 (Warm-adapted)", "-0.01 (Average)", "-1 (Cold-adapted)"))  +
+  labs(y = "Abundance", x = "Urban development", 
        color = "Temperature niche", fill = "Temperature niche") +
   theme_classic() +
   theme(legend.position = "bottom", 
@@ -219,33 +275,37 @@ c <- ggplot(ce_tn_df, mapping = aes(x = mean_temp, y = estimate__)) +
 library(ggpubr)
 cpp <- ggarrange(
   a + theme(legend.position = c(.83,.85), legend.background = element_blank()),
-  b + theme(legend.position = c(.83,.85)),
-  c + theme(legend.position = c(.83,.9)),
+  b + theme(legend.position = c(.83,.85)), 
+  c + theme(legend.position = c(.83,.85), legend.background = element_blank())
+  ,
   ncol = 1, labels = LETTERS
 )
-ggsave(cpp, filename = "figOutputs/sppSpecificAbundance2.png",
-       height = 10, width = 6)
+ggsave(cpp, filename = "figOutputs/sppSpecificAbundance2_tempNicheIncluded.png",
+       height = 11, width = 6)
 
 
 # make results table for no BACA
 mdf_phylo_noBaca <- mdf_phylo %>% 
   filter(Site != "Baca")
 
-sppSpecificDev_phylo_noBaca <- brm(formula = bf(abundance ~ Dev_1  + mean_temp + 
-                                           totalLength + bio1_mean + hsp + 
-                                           Dev_1:totalLength +
-                                           mean_temp:bio1_mean + 
-                                           Dev_1:hsp +
-                                           (1|validName) + (1|gr(phyloSpp, cov = A)),
-                                         zi ~ Dev_1 + hsp + totalLength),
-                            data = mdf_phylo_noBaca,
-                            data2 = list(A = A),
-                            family = zero_inflated_negbinomial(),
-                            chains = 4, iter = 2400, warmup = 1000,
-                            control = list(adapt_delta = 0.98),
-                            cores = 4, seed = 1234, 
-                            threads = threading(2),
-                            backend = "cmdstanr", 
+
+set.seed(50)
+sppSpecificDev_phylo_noBaca <- brm(formula = bf(abundance ~ Dev_1   + 
+                                                  totalLength + bio1_mean + hsp + 
+                                                  Dev_1:totalLength +
+                                                  Dev_1:bio1_mean + 
+                                                  Dev_1:hsp +
+                                                  (1|validName) + (1|gr(phyloSpp, cov = A)),
+                                                zi ~ Dev_1 + hsp + totalLength),
+                                   data = mdf_phylo_noBaca,
+                                   data2 = list(A = A),
+                                   family = zero_inflated_negbinomial(),
+                                   chains = 4, iter = 2400, warmup = 1000,
+                                   control = list(adapt_delta = 0.99),
+                                   cores = 4, seed = 1234, 
+                                   threads = threading(2),
+                                   backend = "cmdstanr", 
+                                   prior = slopePrior
 )
 
 # examine model assumptions
