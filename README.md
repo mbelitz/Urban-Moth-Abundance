@@ -8,6 +8,7 @@ Contains data that was used to estimate phenology metrics and data used in model
 
 ### data_products
 Data used in analyses that were the product of data cleaning or simple analyses.  
+- adultDataSet_validNames.csv is the lowest taxonomic rank of collected moths per each site and sampling date.
 - lightData.csv is the average amount of artificial light in lux within a 1-km radius of each site. 
 - lunarIllumination_lunarRPackage.csv is the lunar illumination for each date in 2019 and 2020.
 - richness.csv provides a list with unique moth species found at each site.
