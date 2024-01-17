@@ -32,8 +32,8 @@ Daily weather data for study region for 2019 and 2020.
 Contains R scripts used to fit models and generate figures. 
 
 ### analyses
+- calculateMostAbundantFamilies&Species script to generate summary statistics values used in first discussion paragraph.
+- calculatePercentDecline.R script used to generate summary statistics values used in concluding paragraph.
 - pooledAbundanceModeling.R script to fit model predicting pooled abundance of caterpillars and adult macro- and micro-moths.
 - richness_PD_MPD_Modeling.R script to fit model predicting richness, PD, and MPD of adult macro moths.
 - spp_specificModeling.R script to fit model predicting species-specific abundance at each site.
-- calculatePercentDecline.R script used to generate summary statistics values used in concluding paragraph
-- plotUrbVars3D.R script used to generate supplemental figure. 
