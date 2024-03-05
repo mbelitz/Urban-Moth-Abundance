@@ -63,7 +63,7 @@ adult_df <- ungroup(adult_df) %>%
 get_prior(macroMoths ~ Dev_1  + lunarIllumination + prcp + tmin +
             (1|Site), data = adult_df, family = zero_inflated_negbinomial())
 
-slopePrior <- prior(normal(0,10), class = b)
+slopePrior <- prior(normal(0,5), class = b)
 # make my one, well thought-out model
 set.seed(2963)
 macro_dev <- brm(formula = bf(macroMoths ~ Dev_1  + lunarIllumination + prcp + tmin +
@@ -71,12 +71,13 @@ macro_dev <- brm(formula = bf(macroMoths ~ Dev_1  + lunarIllumination + prcp + t
                                   zi ~ Dev_1 + lunarIllumination + prcp + tmin + (1|Site)),
                             data = adult_df,
                             family = zero_inflated_negbinomial(),
-                            chains = 4, iter = 2400, warmup = 1000,
-                            control = list(adapt_delta = 0.99),
+                            chains = 4, iter = 3600, warmup = 1000,
+                            control = list(adapt_delta = 0.9999),
                             cores = 4, seed = 1234, 
                             threads = threading(2),
                             backend = "cmdstanr", 
-                 prior = slopePrior)
+                 prior = slopePrior,
+                 silent = 0)
 
 
 
@@ -120,8 +121,8 @@ macro_plot <- ggplot() +
   geom_jitter(adult_df, mapping = aes(x = meanDev + (sdDev*Dev_1), y = macroMoths), alpha = 0.5) +
   geom_line(ce_df, mapping = aes(x = meanDev + (sdDev*Dev_1), y = estimate__)) +
   geom_ribbon(ce_df, mapping = aes(x = meanDev + (sdDev*Dev_1), ymax = upper__, ymin = lower__), alpha = 0.3) +
-  labs(x = "Urban development", y = "Total abundance") +
-  ggtitle("Macro moths") +
+  labs(x = "", y = "Total abundance") +
+  ggtitle("Macro-moths") +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 13),
         axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
@@ -143,7 +144,8 @@ macro_dev_noBaca <- brm(formula = bf( macroMoths ~ Dev_1  +
                  cores = 4, seed = 1234, 
                  threads = threading(2),
                  backend = "cmdstanr", 
-                 prior = slopePrior
+                 prior = slopePrior,
+                 silent = 0
 )
 
 # examine model assumptions
@@ -171,7 +173,8 @@ micro_dev <- brm(formula = bf( microMoths ~ Dev_1  +
                  cores = 4, seed = 1234, 
                  threads = threading(2),
                  backend = "cmdstanr", 
-                 prior = slopePrior
+                 prior = slopePrior,
+                 silent = 0
 )
 
 # examine model assumptions
@@ -209,8 +212,8 @@ micro_plot <- ggplot() +
   geom_jitter(adult_df, mapping = aes(x = meanDev + (sdDev*Dev_1), y = microMoths), alpha = 0.5) +
   geom_line(ce_micro_df, mapping = aes(x = meanDev + (sdDev*Dev_1), y = estimate__)) +
   geom_ribbon(ce_micro_df, mapping = aes(x = meanDev + (sdDev*Dev_1), ymax = upper__, ymin = lower__), alpha = 0.3) +
-  labs(x = "Urban development", y = "Total abundance") +
-  ggtitle("Micro moths") +
+  labs(x = "", y = "Total abundance") +
+  ggtitle("Micro-moths") +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 13),
         axis.text.x = element_text(angle = 45, vjust = 1, hjust=1))
@@ -230,7 +233,8 @@ micro_dev_noBaca <- brm(formula = bf(microMoths ~ Dev_1  +
                  cores = 4, seed = 1234, 
                  threads = threading(2),
                  backend = "cmdstanr", 
-                 prior = slopePrior
+                 prior = slopePrior,
+                 silent = 0
 )
 
 # examine model assumptions
@@ -341,6 +345,11 @@ frass_df_perSite <- frass_df_perSite %>%
   )
 
 
+get_prior(MeanMassPerDay ~ Dev_1  +
+            meanLunarIllumination + mean_tmin + mean_prcp +
+            (1|Site), data = frass_df_perSite, family = gaussian())
+
+
 set.seed(789)
 frass_dev <- brm(formula = bf(MeanMassPerDay ~ Dev_1  +
                                 meanLunarIllumination + mean_tmin + mean_prcp +
@@ -352,7 +361,8 @@ frass_dev <- brm(formula = bf(MeanMassPerDay ~ Dev_1  +
                  cores = 4, seed = 1234, 
                  threads = threading(2),
                  backend = "cmdstanr", 
-                 prior = slopePrior
+                 prior = slopePrior,
+                 silent = 0
 )
 
 # examine model assumptions
@@ -393,7 +403,8 @@ frass_dev_noBaca <- brm(formula = bf(MeanMassPerDay ~ Dev_1  +
                  cores = 4, seed = 1234, 
                  threads = threading(2),
                  backend = "cmdstanr", 
-                 prior = slopePrior
+                 prior = slopePrior,
+                 silent = 0
 )
 
 # examine model assumptions
@@ -409,7 +420,7 @@ frass_sum_noBaca <- summary(frass_dev_noBaca, prob = 0.89)$fixed %>%
 # plot modeling outputs
 cp <- cowplot::plot_grid(macro_plot, micro_plot, frass_plot, 
                          labels = c("A", "B", "C"),
-                         nrow = 3, ncol = 1)
+                         nrow = 3, ncol = 1, align = "v")
 
 if(dir.exists("figOutputs")){
   ggsave(plot = cp, filename = "figOutputs/pooledAbundance.png", dpi = 500,

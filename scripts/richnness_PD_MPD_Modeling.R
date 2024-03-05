@@ -26,7 +26,8 @@ rich_dev <- brm(formula = bf(richness ~ Dev_1),
                  control = list(adapt_delta = 0.93),
                  cores = 4, seed = 1234, 
                  threads = threading(2),
-                 backend = "cmdstanr", 
+                 backend = "cmdstanr",
+                silent = 0
 )
 
 
@@ -47,7 +48,7 @@ rich_plot <- ggplot() +
   geom_jitter(rich, mapping = aes(x = Dev_1, y = richness), alpha = 0.5) +
   geom_line(ce_df, mapping = aes(x = Dev_1, y = estimate__)) +
   geom_ribbon(ce_df, mapping = aes(x = Dev_1, ymax = upper__, ymin = lower__), alpha = 0.3) +
-  labs(x = "Urban development", y = "Richness") +
+  labs(x = "", y = "Richness") +
   scale_y_continuous(breaks = c(0,25,50,75,100,125,150,175))+
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 16))
@@ -67,6 +68,7 @@ rich_dev_noBaca <- brm(formula = bf(richness ~ Dev_1),
                 cores = 4, seed = 1234, 
                 threads = threading(2),
                 backend = "cmdstanr", 
+                silent = 0
 )
 
 
@@ -160,6 +162,7 @@ pdp_dev <- brm(formula = bf(PD ~ Dev_1),
                 cores = 4, seed = 1234, 
                 threads = threading(2),
                 backend = "cmdstanr", 
+               silent = 0
 )
 
 # examine model assumptions
@@ -179,7 +182,7 @@ pdp_plot <- ggplot() +
   geom_jitter(moth.pdp, mapping = aes(x = Dev_1, y = PD), alpha = 0.5) +
   geom_line(ce_pdp_df, mapping = aes(x = Dev_1, y = estimate__)) +
   geom_ribbon(ce_pdp_df, mapping = aes(x = Dev_1, ymax = upper__, ymin = lower__), alpha = 0.3) +
-  labs(x = "Urban development", y = "Phylogenetic \n diversity") +
+  labs(x = "", y = "Phylogenetic \n diversity") +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 16))
 
@@ -197,7 +200,8 @@ pdp_dev_noBaca <- brm(formula = bf(PD ~ Dev_1),
                        control = list(adapt_delta = 0.93),
                        cores = 4, seed = 1234, 
                        threads = threading(2),
-                       backend = "cmdstanr", 
+                       backend = "cmdstanr",
+                      silent = 0 
 )
 
 # examine model assumptions
@@ -256,7 +260,8 @@ mpd_dev <- brm(formula = bf(abundance.weighted ~ Dev_1),
                control = list(adapt_delta = 0.93),
                cores = 4, seed = 1234, 
                threads = threading(2),
-               backend = "cmdstanr", 
+               backend = "cmdstanr",
+               silent = 0
 )
 
 # examine model assumptions
@@ -295,6 +300,7 @@ mpd_dev_noBaca <- brm(formula = bf(abundance.weighted ~ Dev_1),
                cores = 4, seed = 1234, 
                threads = threading(2),
                backend = "cmdstanr", 
+               silent = 0
 )
 
 # examine model assumptions
@@ -323,7 +329,7 @@ mpd_plot_noBaca
 # plot modeling outputs
 cp <- cowplot::plot_grid(rich_plot, pdp_plot, mpd_plot, 
                          labels = c("A", "B", "C"),
-                         nrow = 3, ncol = 1)
+                         nrow = 3, ncol = 1, align = "v")
 
 if(dir.exists("figOutputs")){
   ggsave(plot = cp, filename = "figOutputs/rich_PD_MDP.png", dpi = 500,

@@ -105,7 +105,8 @@ sppSpecificDev <- brm(formula = bf(abundance ~ Dev_1 +
                       cores = 4, seed = 1234, 
                       threads = threading(2),
                       backend = "cmdstanr", 
-                      prior = slopePrior
+                      prior = slopePrior,
+                      silent = 0
 )
 
 
@@ -172,7 +173,8 @@ sppSpecificDev_phylo <- brm(formula = bf(abundance ~ Dev_1   +
                             cores = 4, seed = 1234, 
                             threads = threading(2),
                             backend = "cmdstanr", 
-                            prior = slopePrior
+                            prior = slopePrior,
+                            silent = 0
 )
 
 # examine model assumptions
@@ -215,7 +217,7 @@ a <- ggplot() +
   geom_path(ce_tl_df, mapping = aes(x = meanDev + (sdDev*Dev_1), y =  lower__, color = effect2__), linewidth = 0.25, linetype = 2) +
   geom_path(ce_tl_df, mapping = aes(x = meanDev + (sdDev*Dev_1), y = upper__, color = effect2__), linewidth = 0.25, linetype = 2) +
   scale_y_continuous(expand = c(0,0)) +
-  labs(x = "Urban development", y = "Abundance",
+  labs(x = "", y = "Abundance",
        color = "Body size", fill = "Body size") +
   scale_color_manual(values = c("#9e2a2b","#e09f3e","#223d44"),
                      labels = c("1.04 (Large)", "0.01 (Average)", "-1.03 (Small)")) +
@@ -243,7 +245,7 @@ b <- ggplot(ce_hsp_df, mapping = aes(x = meanDev + (sdDev*Dev_1), y = estimate__
                      labels = c("Multi-family", "Family", "Genus/Species"))  +
   scale_fill_manual(values = c("#D89A9E", "#2E4057", "#519872"), 
                     labels = c("Multi-family", "Family", "Genus/Species")) +
-  labs(y = "Abundance", x = "Urban development", 
+  labs(y = "Abundance", x = "", 
        color = "Host plant \n specialization", fill = "Host plant \n specialization") +
   theme_classic() +
   theme(legend.position = "bottom",
@@ -305,7 +307,8 @@ sppSpecificDev_phylo_noBaca <- brm(formula = bf(abundance ~ Dev_1   +
                                    cores = 4, seed = 1234, 
                                    threads = threading(2),
                                    backend = "cmdstanr", 
-                                   prior = slopePrior
+                                   prior = slopePrior,
+                                   silent = 0
 )
 
 # examine model assumptions
