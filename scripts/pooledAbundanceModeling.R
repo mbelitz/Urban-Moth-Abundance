@@ -382,7 +382,7 @@ frass_plot <- ggplot() +
   geom_jitter(frass_df_perSite, mapping = aes(x = meanDev + (sdDev*Dev_1), y = MeanMassPerDay), alpha = 0.5) +
   geom_line(ce_frass_df, mapping = aes(x = meanDev + (sdDev*Dev_1), y = estimate__)) +
   geom_ribbon(ce_frass_df, mapping = aes(x = meanDev + (sdDev*Dev_1), ymax = upper__, ymin = lower__), alpha = 0.3) +
-  labs(x = "Urban development", y = "Mean frass mass per day \n log(x + 0.001)") +
+  labs(x = "Urban development", y = "Mean frass mass \n per day log(x + 0.001)") +
   ggtitle("Caterpillars") +
   theme_bw() +
   theme(plot.title = element_text(hjust = 0.5, size = 13),
@@ -420,7 +420,8 @@ frass_sum_noBaca <- summary(frass_dev_noBaca, prob = 0.89)$fixed %>%
 # plot modeling outputs
 cp <- cowplot::plot_grid(macro_plot, micro_plot, frass_plot, 
                          labels = c("A", "B", "C"),
-                         nrow = 3, ncol = 1, align = "v")
+                         nrow = 3, ncol = 1, align = "v"
+                         )
 
 if(dir.exists("figOutputs")){
   ggsave(plot = cp, filename = "figOutputs/pooledAbundance.png", dpi = 500,
